@@ -1,0 +1,45 @@
+# uniple checkout — Shopify app (= JPYC stablecoin Manual Payment + Thank you pay link)
+# Path A: Manual Payment offline gateway + Thank you / Order status UI extension で
+# pay button 表示。 検討した Path B (= Payments App Extension native offsite) は
+# Shopify Plus / Approved Partner 要件 + 審査厳格のため MVP 段階で見送り (= codex 査読 r70)。
+client_id = ""
+
+[access_scopes]
+# Manual Payment + orderMarkAsPaid に必要な最小 scope。
+# - read_orders: order detail 取得 (= shop admin 経由 webhook + uniple session 作成時)
+# - write_orders: orderMarkAsPaid mutation (= uniple webhook completed 受信時)
+# write_checkouts は deprecated のため不採用、 read_products は first smoke 後に判断。
+scopes = "read_orders,write_orders"
+
+[webhooks]
+api_version = "2025-10"
+
+  # Mandatory app lifecycle
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = ["app/uninstalled"]
+
+  [[webhooks.subscriptions]]
+  topics = ["app/scopes_update"]
+  uri = "/webhooks/app/scopes_update"
+
+  # Shopify shop → app: 新規 order 作成検知で uniple session 発行
+  [[webhooks.subscriptions]]
+  topics = ["orders/create"]
+  uri = "/webhooks/orders/create"
+
+  # 補完: order キャンセル / refund で uniple 側 mapping を invalidate
+  [[webhooks.subscriptions]]
+  topics = ["orders/cancelled"]
+  uri = "/webhooks/orders/cancelled"
+
+  # Mandatory compliance webhooks (= public app submission 時に有効化、 当面 disabled)
+  # [[webhooks.subscriptions]]
+  # uri = "/webhooks/customers/data_request"
+  # compliance_topics = ["customers/data_request"]
+  # [[webhooks.subscriptions]]
+  # uri = "/webhooks/customers/redact"
+  # compliance_topics = ["customers/redact"]
+  # [[webhooks.subscriptions]]
+  # uri = "/webhooks/shop/redact"
+  # compliance_topics = ["shop/redact"]

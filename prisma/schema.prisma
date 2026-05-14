@@ -1,0 +1,73 @@
+// uniple checkout — Shopify app Prisma schema
+// codex 査読 r70 反映: GID 正規化 / idempotency / amount-currency / status string enum
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:dev.sqlite"
+}
+
+// Shopify CLI scaffold default = OAuth session
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator  Boolean?  @default(false)
+  emailVerified Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+// uniple 加盟店設定 (= shop ごと、 secret は app-level encryption key で暗号化推奨)
+model ShopSettings {
+  id              String   @id @default(cuid())
+  shop            String   @unique
+  apiBaseUrl      String   @default("https://uniple.io")
+  apiKey          String   // 暗号化 at rest 推奨 (= sodium secretbox 等)
+  webhookSecret   String   // 同上
+  merchantLabel   String
+  mode            String   @default("live") // live | test
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Shopify order ↔ uniple session mapping
+model OrderMapping {
+  id                    String   @id @default(cuid())
+  shop                  String
+  // Shopify Order GID 正規化形式 (= gid://shopify/Order/<numeric>)
+  shopifyOrderId        String
+  // numeric も保持 (= webhook payload 互換)
+  shopifyOrderNumericId String
+  unipleSessionId       String   @unique
+  unipleEnv             String   @default("live")
+  amountJpyc            Int
+  currency              String   @default("JPY")
+  // pending | paid | paid_pending | failed | cancelled
+  status                String   @default("pending")
+  txHash                String?
+  payer                 String?
+  lastError             String?
+  retryCount            Int      @default(0)
+  // idempotency: 処理済 webhook eventId 履歴 (= JSON string array)
+  processedEventIds     String   @default("[]")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([shop, shopifyOrderId])
+  @@index([shop])
+  @@index([status])
+}
