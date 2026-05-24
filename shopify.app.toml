@@ -5,7 +5,7 @@
 client_id = "cdf36943d96d6284bdfa212ee9801b45"
 name = "uniple checkout"
 handle = "uniple-checkout"
-application_url = "https://invited-width-entrepreneurs-breath.trycloudflare.com"
+application_url = "https://shopify.uniple.io"
 embedded = true
 
 [build]
@@ -21,9 +21,9 @@ scopes = "read_orders,write_orders"
 
 [auth]
 redirect_urls = [
-  "https://invited-width-entrepreneurs-breath.trycloudflare.com/auth/callback",
-  "https://invited-width-entrepreneurs-breath.trycloudflare.com/auth/shopify/callback",
-  "https://invited-width-entrepreneurs-breath.trycloudflare.com/api/auth/callback"
+  "https://shopify.uniple.io/auth/callback",
+  "https://shopify.uniple.io/auth/shopify/callback",
+  "https://shopify.uniple.io/api/auth/callback"
 ]
 
 [webhooks]
@@ -66,6 +66,6 @@ embedded = false
 # {app}/apps/uniple-pay-link?... に proxy される。
 # Shopify が HMAC `signature` query param を付加、 plugin endpoint で検証。
 [app_proxy]
-url = "https://invited-width-entrepreneurs-breath.trycloudflare.com/apps/uniple-pay-link"
+url = "https://shopify.uniple.io/apps/uniple-pay-link"
 subpath = "uniple-pay-link"
 prefix = "apps"
