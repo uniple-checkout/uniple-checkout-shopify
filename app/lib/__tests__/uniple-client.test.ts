@@ -1,3 +1,6 @@
+// Copyright (C) 2026 uniple inc.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { UnipleClient, UnipleConfig } from "../uniple-client.server";

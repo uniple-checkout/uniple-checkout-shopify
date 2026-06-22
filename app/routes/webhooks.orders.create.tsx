@@ -1,15 +1,18 @@
+// Copyright (C) 2026 uniple inc.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 /**
  * Shopify orders/create webhook handler.
  *
  * shop で order が作成されると Shopify から本 endpoint に POST、 plugin が
- * uniple session を発行 + Shopify order metafield に session_id 紐付け。
+ * uniple session を発行して OrderMapping に保存する。
  *
- * Manual Payment + Thank you pay link flow (= codex Path A):
+ * Manual Payment + 注文確認 email pay link flow:
  *   1. shop で order 作成 (= status: pending、 financial_status: pending)
- *   2. 本 webhook で uniple session 発行 + order metafield に紐付け
- *   3. Thank you / Order status UI extension が metafield から checkoutUrl 読取り、
- *      pay button 表示
- *   4. 購入者 click → uniple checkout → MetaMask 送金 → uniple webhook で paid
+ *   2. 本 webhook で uniple session 発行 + OrderMapping 作成
+ *   3. 購入者が注文確認 email の button を click
+ *   4. App Proxy が OrderMapping を引き、uniple checkout に redirect
+ *   5. 購入者 click → uniple checkout → wallet 送金 → uniple webhook で paid
  *
  * idempotency: 既に OrderMapping ある場合は session 再発行せず skip。
  */
@@ -20,7 +23,6 @@ import db from "../db.server";
 import { UnipleClient } from "../lib/uniple-client.server";
 import { extractOrderNumericId, normalizeOrderGid } from "../lib/shopify-gid.server";
 import { toIntegerJpyc } from "../lib/uniple-amount.server";
-import { setUnipleOrderMetafields } from "../lib/shopify-metafields.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, payload, topic } = await authenticate.webhook(request);
@@ -121,23 +123,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return new Response("duplicate-retry-skip", { status: 200 });
       }
       throw e;
-    }
-
-    // Shopify order に uniple metafield 書込 (= UI extension の pay button 依存先)
-    // 失敗しても mapping は作成済 (= 後段で metafield を補完できる)、 log warning で 200 return
-    try {
-      await setUnipleOrderMetafields(shop, orderGid, {
-        checkoutUrl: session.checkoutUrl,
-        sessionId: session.sessionId,
-        status: "pending",
-      });
-    } catch (e) {
-      const err = e as Error;
-      console.warn("[uniple] setUnipleOrderMetafields failed", err.message);
-      await db.orderMapping.updateMany({
-        where: { unipleSessionId: session.sessionId },
-        data: { lastError: `metafield_write_failed: ${err.message}`.slice(0, 500) },
-      });
     }
 
     return new Response("ok", { status: 200 });

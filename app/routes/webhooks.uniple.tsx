@@ -1,3 +1,6 @@
+// Copyright (C) 2026 uniple inc.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 /**
  * uniple webhook receiver (= uniple → Shopify app)。
  *
@@ -19,7 +22,6 @@ import type { ActionFunctionArgs } from "react-router";
 import db from "../db.server";
 import { UnipleClient } from "../lib/uniple-client.server";
 import { unauthenticated } from "../shopify.server";
-import { setUnipleOrderMetafields } from "../lib/shopify-metafields.server";
 
 const ORDER_MARK_AS_PAID_MUTATION = `#graphql
   mutation OrderMarkAsPaid($input: OrderMarkAsPaidInput!) {
@@ -176,12 +178,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         processedEventIds: appendEventId(processedIds, eventId),
       },
     });
-    // metafield update (= UI extension の banner 切替、 失敗しても paid 自体は確定済)
-    try {
-      await setUnipleOrderMetafields(mapping.shop, mapping.shopifyOrderId, { status: "paid" }, admin);
-    } catch (metaErr) {
-      console.warn("[uniple] paid metafield update failed", (metaErr as Error).message);
-    }
     return jsonResponse(200, { ok: true });
   } catch (e) {
     const err = e as Error;

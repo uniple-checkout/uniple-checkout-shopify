@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Telegram 通知 helper
 # Usage:
+#   bin/notify-telegram.sh
 #   bin/notify-telegram.sh "Message text"
 #   bin/notify-telegram.sh -t "Custom title" "Message body"
 #   echo "long stdout" | bin/notify-telegram.sh -t "Title" -
@@ -51,6 +52,7 @@ ERR
 fi
 
 # --- parse args -------------------------------------------------------------
+DEFAULT_MESSAGE="checkout 作業完了"
 TITLE=""
 while [[ $# -gt 0 && "${1:-}" == "-t" ]]; do
   TITLE="${2:-}"
@@ -58,11 +60,8 @@ while [[ $# -gt 0 && "${1:-}" == "-t" ]]; do
 done
 
 if [[ $# -lt 1 ]]; then
-  echo "ERROR: missing message arg or '-' for stdin" >&2
-  exit 1
-fi
-
-if [[ "$1" == "-" ]]; then
+  MESSAGE="${DEFAULT_MESSAGE}"
+elif [[ "$1" == "-" ]]; then
   MESSAGE=$(cat)
 else
   MESSAGE="$1"

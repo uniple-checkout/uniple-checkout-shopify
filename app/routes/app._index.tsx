@@ -1,3 +1,6 @@
+// Copyright (C) 2026 uniple inc.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -9,7 +12,8 @@ const SETUP_DOC_PATH = "/docs/merchant-integration-spec";
 const FAQ_DOC_PATH = "/docs/merchant-integration-spec#9-troubleshooting-faq";
 const MERCHANT_APPLICATION_URL = "https://forms.gle/b8kwVZeynA1ffV8j6";
 const SUPPORT_EMAIL = "support@uniple.io";
-const APP_SUMMARY = "uniple checkout — JPYC stablecoin payment integration.";
+const APP_SUMMARY =
+  "uniple checkout — email-only JPYC stablecoin payment integration.";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -77,6 +81,9 @@ export default function Index() {
               <s-paragraph color="subdued">
                 Required settings: API base URL, API key, and webhook secret.
               </s-paragraph>
+              <s-paragraph color="subdued">
+                Customer payment entry: order confirmation email only.
+              </s-paragraph>
             </s-stack>
           </s-box>
 
@@ -108,6 +115,10 @@ export default function Index() {
               merchant integration spec
             </s-link>
             .
+          </s-list-item>
+          <s-list-item>
+            Do not add a Thank you page or Customer Account payment button; the
+            supported customer path is the email link.
           </s-list-item>
         </s-unordered-list>
       </s-section>

@@ -1,3 +1,6 @@
+// Copyright (C) 2026 uniple inc.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 import { describe, expect, it } from "vitest";
 import { buildUnipleCheckoutUrl } from "../uniple-checkout-url.server";
 

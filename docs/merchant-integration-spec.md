@@ -1,10 +1,10 @@
 # Merchant integration spec - uniple checkout for Shopify
 
-Status: draft 0.2.0 for Shopify App Store submission and merchant onboarding.
+Status: v0.2.0 email-only design / Custom Distribution merchant onboarding.
 
 この document は Shopify 加盟店が `uniple checkout` を install し、JPYC 支払いを
-受け付けるための integration spec です。App Store 公開前の custom distribution
-と、公開後の App Store install の両方を対象にします。
+受け付けるための integration spec です。現在の公開経路は Custom Distribution です。
+App Store / Payments Apps path の準備メモは `docs/app-store-submission-plan.md` に分離します。
 
 ## 1. 概要
 
@@ -31,27 +31,14 @@ Status page には支払い button を表示しません。
 
 ## 3. Install 手順
 
-### 3.1 App Store 公開後
+### 3.1 Custom Distribution install
 
-1. Shopify App Store で `uniple checkout` を検索します。
-2. `Add app` をクリックします。
-3. install 先 shop を選択します。
+1. [uniple 加盟店申請 form](https://forms.gle/b8kwVZeynA1ffV8j6) から申請します。
+2. uniple から受領した Custom Distribution install link を開きます。
+3. install 先 Shopify shop を選択します。
 4. requested scopes `read_orders, write_orders` を確認して承認します。
 5. Shopify admin の `Apps -> uniple checkout` を開きます。
 6. [4. 設定 (Setup)](#4-設定-setup) に進みます。
-
-App Store listing URL は公開後にこの document へ追記します。
-
-### 3.2 App Store 公開前 custom distribution
-
-App Store 公開前は、uniple が Partner Dashboard の custom distribution install link を
-個別に発行します。
-
-1. uniple から受領した custom distribution install link を開きます。
-2. install 先 Shopify shop を選択します。
-3. requested scopes `read_orders, write_orders` を確認して承認します。
-4. Shopify admin の `Apps -> uniple checkout` を開きます。
-5. [4. 設定 (Setup)](#4-設定-setup) に進みます。
 
 API key / webhook secret は install link では共有しません。加盟店申請承認後に別経路で
 発行されます。
@@ -141,13 +128,6 @@ Place this immediately after {{ email_body }} in the Order confirmation notifica
 {% if shop.permanent_domain and id %}
   {% assign uniple_pay_url = 'https://' | append: shop.permanent_domain | append: '/apps/uniple-pay-link?orderId=' | append: id %}
 {% endif %}
-{% if uniple_pay_url == blank and order.metafields.uniple.checkout_url.value != blank %}
-  {% assign uniple_pay_url = order.metafields.uniple.checkout_url.value %}
-{% endif %}
-{% if uniple_pay_url == blank and order.metafields.uniple.checkout_url != blank %}
-  {% assign uniple_pay_url = order.metafields.uniple.checkout_url %}
-{% endif %}
-
 {% if uniple_gateway_selected and uniple_order_pending and uniple_pay_url != blank %}
 <table class="row section">
   <tr>
@@ -189,10 +169,9 @@ Place this immediately after {{ email_body }} in the Order confirmation notifica
 {% endif %}
 ```
 
-App Proxy URL (`/apps/uniple-pay-link`) は primary link です。`orders/create` webhook の
-session 作成が email 生成時点でまだ完了していない場合でも、customer click 時に lazy
-create して uniple checkout に redirect できます。order metafield の checkout URL は
-fallback です。
+App Proxy URL (`/apps/uniple-pay-link`) が唯一の customer payment link です。
+`orders/create` webhook の session 作成が email 生成時点でまだ完了していない場合でも、
+customer click 時に lazy create して uniple checkout に redirect できます。
 
 ## 5. 動作 flow (customer 視点)
 
@@ -210,33 +189,19 @@ fallback です。
 10. uniple webhook により Shopify order が paid 化され、Order Status page で
     `Confirmed` / paid state を確認できます。
 
-## 6. Email-only design 採択 (= Shopify UI extension は採用しない)
+## 6. Email-only design (= 採用方針)
 
 uniple checkout for Shopify は **email-only design** を採択しています。
-Thank you page と Customer Account Order Status page には支払い button / banner を
-表示しません。
+Customer は注文確認 email の link からのみ支払い画面に遷移します。
 
-### 経緯
-2026-05-24 〜 2026-05-26 にわたり Shopify UI extension (= `customer-account.order-status.block.render`
-+ `purchase.thank-you.block.render` + `customer-account.order-status.payment-details.render-after`
-等 target) で補助 CTA banner を表示する設計を試行し、 累積 27 deploy version + A/B audit + minimal app
-比較 + Shopify community thread escalation を経て、 以下を確認しました:
-
-- `customer-account.order-status.block.render` target は公式 docs で「Not supported in this version」 と明記。
-- Customer Account UI extension の他 target (= `payment-details.render-after`, `order-index.block.render`,
-  `profile.block.render`) は別 minimal extension-only app では正常 render しますが、 uniple checkout app
-  (= embedded backend あり) では target を越えて silent disable されます。
-- 真因は uniple checkout app の app-level config (= 残候補は `application_url` / `AppDistribution` / Partner
-  Dashboard 設定の組み合わせ) に絞り込み済、 Shopify 内部 log access が必要なため community / Support に
-  escalation 中。
-- Path B (= Shopify Payments Apps V2 / Payments Partner Platform) は現状 invitation-only のため申請不可。
+Thank you page / Customer Account Order Status page には支払い link を表示しません。
+Shopify UI extension 制約により、確実に customer に届く注文確認 email 経路に集中します。
+この方針に合わせて、Block extension は app bundle から削除済みです。
 
 ### Customer 動線
 - Customer は注文確認 email の **「JPYC のお支払いに進む」 button** から uniple checkout に遷移します。
 - 支払い完了後は uniple checkout 側「支払い完了」 表示 + 自動 redirect で Shopify Order Status page に戻ります。
 - Order Status page では Shopify 標準の `Confirmed` / `paid` 表示で支払い状態を確認できます。
-- email を受け取れなかった customer は merchant の admin から email resend、 もしくは customer 自身で uniple
-  へ問い合わせ (= support@uniple.io) の path で救済できます。
 
 ### Optional: customer 向け補助 channel
 加盟店が独自で customer 通知を強化したい場合は、 [7. Optional: 「お支払い受領」 customer email 自動送信](#7-optional-お支払い受領-customer-email-自動送信)
@@ -311,8 +276,12 @@ Shopify mutation が失敗した場合、mapping は `paid_pending` となり、
 uniple checkout は **email-only design** を採択しているため、 Order Status / Thank you
 page には支払い button を表示しません。Customer entry point は注文確認 email の
 「JPYC のお支払いに進む」 button のみです。
-詳細は [6. Email-only design 採択](#6-email-only-design-採択--shopify-ui-extension-は採用しない)
-を参照してください。
+詳細は [6. Email-only design](#6-email-only-design--採用方針) を参照してください。
+
+### customer が注文確認 email を見逃した / 削除した
+
+merchant が Shopify admin から注文確認 email を resend してください。customer が
+merchant に連絡できない場合は、support@uniple.io への問い合わせで救済します。
 
 ### customer paid email が届かない
 
@@ -329,7 +298,7 @@ JPYC は以下の表記を使います。
 - `日本円ステーブルコイン（電子決済手段）決済`
 
 `暗号資産` 表記は資金決済法上 NG です。merchant site、payment instructions、customer
-email、App Store copy、support material でも `日本円ステーブルコイン` / `電子決済手段`
+email、support material でも `日本円ステーブルコイン` / `電子決済手段`
 の表記に統一してください。
 
 recommended merchant-facing note:
@@ -348,7 +317,7 @@ JPYC logo を使う場合は official assets を改変せず、JPYC logo guideli
 
 - Support: support@uniple.io
 - uniple 加盟店申請: https://forms.gle/b8kwVZeynA1ffV8j6
-- GitHub issues: TBD after App Store publication
+- GitHub issues: public bug reports / feature requests only
 
 問い合わせ時は以下を添えてください。
 

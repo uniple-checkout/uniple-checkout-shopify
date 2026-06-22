@@ -1,3 +1,6 @@
+// Copyright (C) 2026 uniple inc.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 import { PassThrough } from "stream";
 import { renderToPipeableStream } from "react-dom/server";
 import { ServerRouter } from "react-router";

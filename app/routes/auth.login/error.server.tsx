@@ -1,3 +1,6 @@
+// Copyright (C) 2026 uniple inc.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 import type { LoginError } from "@shopify/shopify-app-react-router/server";
 import { LoginErrorType } from "@shopify/shopify-app-react-router/server";
 

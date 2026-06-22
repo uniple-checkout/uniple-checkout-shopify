@@ -1,9 +1,6 @@
-# uniple checkout — Shopify app (= JPYC stablecoin Manual Payment + App Proxy pay link)
-# Email-only design (= 2026-05-26 確定): Manual Payment offline gateway + 注文確認 email
-# Liquid snippet の durable App Proxy pay link で customer 動線完結。
-# UI extension (= Thank you / Order Status block) は 27 deploy + A/B audit で
-# 真因が app-level config の app silent disable と判明したため不採用。
-# Path B (= Payments Apps V2) は PPP 現状 invitation-only で 申請待ち長期 track。
+# uniple checkout — Shopify app (= JPYC Manual Payment + email App Proxy pay link)
+# Email-only design: customer payment entry is the Order confirmation email
+# Liquid snippet. No Shopify UI extensions are shipped.
 client_id = "cdf36943d96d6284bdfa212ee9801b45"
 name = "uniple checkout"
 handle = "uniple-checkout"
@@ -40,10 +37,7 @@ api_version = "2025-10"
   topics = ["app/scopes_update"]
   uri = "/webhooks/app/scopes_update"
 
-  # Protected customer data (= 2026-05-14 dev access 設定済、 D user Partner Dashboard で
-  # 「アプリの機能」 + 名前 / メール fields 開発用 access 取得済)。
-  # production review は app store submission 前に別途必要。
-  # 参照: https://shopify.dev/docs/apps/launch/protected-customer-data
+  # Protected customer data access is managed from Partner Dashboard.
   [[webhooks.subscriptions]]
   topics = ["orders/create"]
   uri = "/webhooks/orders/create"
@@ -52,7 +46,7 @@ api_version = "2025-10"
   topics = ["orders/cancelled"]
   uri = "/webhooks/orders/cancelled"
 
-  # Mandatory compliance webhooks (= public app submission 時に有効化、 当面 disabled)
+  # Mandatory compliance webhooks (= enable before public app submission if required)
   # [[webhooks.subscriptions]]
   # uri = "/webhooks/customers/data_request"
   # compliance_topics = ["customers/data_request"]
@@ -61,7 +55,7 @@ api_version = "2025-10"
 embedded = false
 
 # 注文確認 email の Liquid snippet が App Proxy `/apps/uniple-pay-link?orderId=<gid>` を
-# customer click 経由で叩く primary path。
+# customer click 経由で叩く唯一の payment entry。
 # Shopify が HMAC `signature` query param を付加、 plugin endpoint で検証。
 [app_proxy]
 url = "https://shopify.uniple.io/apps/uniple-pay-link"

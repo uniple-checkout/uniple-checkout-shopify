@@ -1,3 +1,6 @@
+// Copyright (C) 2026 uniple inc.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 import { createHmac } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { action } from "../webhooks.uniple";
@@ -14,7 +17,6 @@ const dbMock = vi.hoisted(() => ({
 
 const adminGraphqlMock = vi.hoisted(() => vi.fn());
 const unauthenticatedAdminMock = vi.hoisted(() => vi.fn());
-const setUnipleOrderMetafieldsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../db.server", () => ({
   default: dbMock,
@@ -24,10 +26,6 @@ vi.mock("../../shopify.server", () => ({
   unauthenticated: {
     admin: unauthenticatedAdminMock,
   },
-}));
-
-vi.mock("../../lib/shopify-metafields.server", () => ({
-  setUnipleOrderMetafields: setUnipleOrderMetafieldsMock,
 }));
 
 const WEBHOOK_SECRET = "whsec_test";
@@ -105,7 +103,6 @@ describe("webhooks.uniple action", () => {
       },
     });
     expect(unauthenticatedAdminMock).not.toHaveBeenCalled();
-    expect(setUnipleOrderMetafieldsMock).not.toHaveBeenCalled();
   });
 
   it("records expired event ids without downgrading non-pending mappings", async () => {
@@ -142,7 +139,7 @@ describe("webhooks.uniple action", () => {
     expect(unauthenticatedAdminMock).not.toHaveBeenCalled();
   });
 
-  it("updates paid mapping and metafields after orderMarkAsPaid succeeds", async () => {
+  it("updates paid mapping after orderMarkAsPaid succeeds", async () => {
     dbMock.orderMapping.findUnique.mockResolvedValue(makeMapping());
     dbMock.orderMapping.update.mockResolvedValue(
       makeMapping({ status: "paid" }),
@@ -180,11 +177,5 @@ describe("webhooks.uniple action", () => {
         processedEventIds: JSON.stringify(["evt_completed_1"]),
       },
     });
-    expect(setUnipleOrderMetafieldsMock).toHaveBeenCalledWith(
-      "demo.myshopify.com",
-      "gid://shopify/Order/7207249445032",
-      { status: "paid" },
-      { graphql: adminGraphqlMock },
-    );
   });
 });

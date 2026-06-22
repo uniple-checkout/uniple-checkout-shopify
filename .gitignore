@@ -34,6 +34,8 @@ pnpm-lock.yaml
 .codex
 .codex/
 backups/
+docs/app-store/
+docs/store-submission/
 *.bak
 shopify.app.toml.bak
 shopify.app.toml.pre-*
@@ -46,4 +48,3 @@ list-*.mjs
 ping-*.mjs
 update-*.mjs
 extensions/*/manifest.json
-

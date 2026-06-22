@@ -1,3 +1,6 @@
+// Copyright (C) 2026 uniple inc.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 /**
  * uniple settings page.
  *
@@ -10,6 +13,7 @@ import { useEffect, useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { Form, useActionData, useLoaderData, useNavigation } from "react-router";
 import {
+  AppProvider as PolarisAppProvider,
   Banner,
   BlockStack,
   Box,
@@ -23,6 +27,7 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
+import enTranslations from "@shopify/polaris/locales/en.json";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 
@@ -132,99 +137,102 @@ export default function Settings() {
   }, [actionData?.ok]);
 
   return (
-    <Page title="uniple checkout settings" subtitle={`Shop: ${shop}`}>
-      <Layout>
-        <Layout.Section>
-          {savedFlash && (
-            <Box paddingBlockEnd="400">
-              <Banner tone="success" title="Settings saved">
-                <p>uniple credentials updated.</p>
-              </Banner>
-            </Box>
-          )}
-          {actionData?.error && (
-            <Box paddingBlockEnd="400">
-              <Banner tone="critical" title="Failed to save">
-                <p>{actionData.error}</p>
-              </Banner>
-            </Box>
-          )}
+    <PolarisAppProvider i18n={enTranslations}>
+      <Page title="uniple checkout settings" subtitle={`Shop: ${shop}`}>
+        <Layout>
+          <Layout.Section>
+            {savedFlash && (
+              <Box paddingBlockEnd="400">
+                <Banner tone="success" title="Settings saved">
+                  <p>uniple credentials updated.</p>
+                </Banner>
+              </Box>
+            )}
+            {actionData?.error && (
+              <Box paddingBlockEnd="400">
+                <Banner tone="critical" title="Failed to save">
+                  <p>{actionData.error}</p>
+                </Banner>
+              </Box>
+            )}
 
-          <Card>
-            <Form method="post">
-              <FormLayout>
-                <TextField
-                  label="API base URL"
-                  name="apiBaseUrl"
-                  value={apiBaseUrl}
-                  onChange={setApiBaseUrl}
-                  autoComplete="off"
-                  helpText="Default: https://uniple.io"
-                />
-                <TextField
-                  label="Merchant label"
-                  name="merchantLabel"
-                  value={merchantLabel}
-                  onChange={setMerchantLabel}
-                  autoComplete="off"
-                  helpText="Displayed on the uniple checkout page."
-                />
-                <Select
-                  label="Mode"
-                  name="mode"
-                  options={[
-                    { label: "Live", value: "live" },
-                    { label: "Test", value: "test" },
-                  ]}
-                  value={mode}
-                  onChange={(v: string) => setMode(v as "live" | "test")}
-                />
-                <TextField
-                  label="API key"
-                  name="apiKey"
-                  type="password"
-                  value={apiKey}
-                  onChange={setApiKey}
-                  autoComplete="off"
-                  helpText="Issued by uniple admin. Stored masked; submit blank or the mask to keep the current value."
-                />
-                <TextField
-                  label="Webhook secret"
-                  name="webhookSecret"
-                  type="password"
-                  value={webhookSecret}
-                  onChange={setWebhookSecret}
-                  autoComplete="off"
-                  helpText="HMAC-SHA256 webhook signing secret."
-                />
-                <InlineStack align="end">
-                  <Button submit variant="primary" loading={submitting}>
-                    Save settings
-                  </Button>
-                </InlineStack>
-              </FormLayout>
-            </Form>
-          </Card>
-        </Layout.Section>
-        <Layout.Section variant="oneThird">
-          <Card>
-            <BlockStack gap="200">
-              <Text as="h2" variant="headingMd">
-                Status
-              </Text>
-              <Text as="p" tone="subdued">
-                API key: {settings.hasApiKey ? "set" : "not set"}
-              </Text>
-              <Text as="p" tone="subdued">
-                Webhook secret: {settings.hasWebhookSecret ? "set" : "not set"}
-              </Text>
-              <Text as="p" tone="subdued">
-                Route flow: Manual Payment + order confirmation email pay link (= Path A').
-              </Text>
-            </BlockStack>
-          </Card>
-        </Layout.Section>
-      </Layout>
-    </Page>
+            <Card>
+              <Form method="post">
+                <FormLayout>
+                  <TextField
+                    label="API base URL"
+                    name="apiBaseUrl"
+                    value={apiBaseUrl}
+                    onChange={setApiBaseUrl}
+                    autoComplete="off"
+                    helpText="Default: https://uniple.io"
+                  />
+                  <TextField
+                    label="Merchant label"
+                    name="merchantLabel"
+                    value={merchantLabel}
+                    onChange={setMerchantLabel}
+                    autoComplete="off"
+                    helpText="Displayed on the uniple checkout page."
+                  />
+                  <Select
+                    label="Mode"
+                    name="mode"
+                    options={[
+                      { label: "Live", value: "live" },
+                      { label: "Test", value: "test" },
+                    ]}
+                    value={mode}
+                    onChange={(v: string) => setMode(v as "live" | "test")}
+                  />
+                  <TextField
+                    label="API key"
+                    name="apiKey"
+                    type="password"
+                    value={apiKey}
+                    onChange={setApiKey}
+                    autoComplete="off"
+                    helpText="Issued by uniple admin. Stored masked; submit blank or the mask to keep the current value."
+                  />
+                  <TextField
+                    label="Webhook secret"
+                    name="webhookSecret"
+                    type="password"
+                    value={webhookSecret}
+                    onChange={setWebhookSecret}
+                    autoComplete="off"
+                    helpText="HMAC-SHA256 webhook signing secret."
+                  />
+                  <InlineStack align="end">
+                    <Button submit variant="primary" loading={submitting}>
+                      Save settings
+                    </Button>
+                  </InlineStack>
+                </FormLayout>
+              </Form>
+            </Card>
+          </Layout.Section>
+          <Layout.Section variant="oneThird">
+            <Card>
+              <BlockStack gap="200">
+                <Text as="h2" variant="headingMd">
+                  Status
+                </Text>
+                <Text as="p" tone="subdued">
+                  API key: {settings.hasApiKey ? "set" : "not set"}
+                </Text>
+                <Text as="p" tone="subdued">
+                  Webhook secret: {settings.hasWebhookSecret ? "set" : "not set"}
+                </Text>
+                <Text as="p" tone="subdued">
+                  Route flow: Manual Payment + order confirmation email pay link
+                  (= email-only design).
+                </Text>
+              </BlockStack>
+            </Card>
+          </Layout.Section>
+        </Layout>
+      </Page>
+    </PolarisAppProvider>
   );
 }

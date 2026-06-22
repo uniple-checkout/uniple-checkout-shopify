@@ -1,3 +1,6 @@
+// Copyright (C) 2026 uniple inc.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 const SETUP_DOC_PATH = "/docs/merchant-integration-spec";
 const MERCHANT_APPLICATION_URL = "https://forms.gle/b8kwVZeynA1ffV8j6";
 

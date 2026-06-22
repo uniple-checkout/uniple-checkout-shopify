@@ -1,3 +1,6 @@
+// Copyright (C) 2026 uniple inc.
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 import { describe, expect, it } from "vitest";
 import { buildUserAgent, UNIPLE_PLUGIN_VERSION } from "../uniple-user-agent.server";
 
