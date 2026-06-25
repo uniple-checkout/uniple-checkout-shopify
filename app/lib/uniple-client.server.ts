@@ -192,7 +192,10 @@ export class UnipleClient {
     };
   }
 
-  async syncProducts(products: ProductSyncItem[]): Promise<Record<string, unknown>> {
+  async syncProducts(
+    products: ProductSyncItem[],
+    options: { replace?: boolean; scope?: "site" } = {},
+  ): Promise<Record<string, unknown>> {
     if (products.length > 200) {
       throw new UnipleApiError("products max 200", 400);
     }
@@ -208,7 +211,10 @@ export class UnipleClient {
         Accept: "application/json",
         "User-Agent": buildUserAgent(),
       },
-      body: JSON.stringify({ products }),
+      body: JSON.stringify({
+        products,
+        ...(options.replace ? { replace: true, scope: options.scope ?? "site" } : {}),
+      }),
     });
 
     const raw = await response.text();

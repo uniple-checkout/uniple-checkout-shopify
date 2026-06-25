@@ -46,6 +46,13 @@ interface LoaderData {
     hasApiKey: boolean;
     hasWebhookSecret: boolean;
   };
+  x402Products: Array<{
+    externalId: string;
+    name: string;
+    priceJpyc: string;
+    active: boolean;
+    aiEnabled: boolean;
+  }>;
 }
 
 interface ActionData {
@@ -59,6 +66,19 @@ export const loader = async ({ request }: LoaderFunctionArgs): Promise<LoaderDat
   const shop = session.shop;
 
   const settings = await db.shopSettings.findUnique({ where: { shop } });
+  const x402Products = await db.x402Product.findMany({
+    where: { shop },
+    orderBy: { externalId: "asc" },
+    select: {
+      externalId: true,
+      name: true,
+      priceJpyc: true,
+      active: true,
+      aiEnabled: true,
+    },
+    take: 200,
+  });
+
   return {
     shop,
     settings: {
@@ -70,6 +90,7 @@ export const loader = async ({ request }: LoaderFunctionArgs): Promise<LoaderDat
       hasApiKey: Boolean(settings?.apiKey),
       hasWebhookSecret: Boolean(settings?.webhookSecret),
     },
+    x402Products,
   };
 };
 
@@ -83,6 +104,50 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionDat
     const settings = await db.shopSettings.findUnique({ where: { shop } });
     if (!settings || !settings.apiKey) {
       return { error: "Merchant API keyを保存してから x402商品同期を実行してください。" };
+    }
+    try {
+      const result = await syncShopifyX402Products(
+        admin,
+        shop,
+        new UnipleClient({
+          apiKey: settings.apiKey,
+          webhookSecret: settings.webhookSecret,
+          merchantLabel: settings.merchantLabel,
+          apiBaseUrl: settings.apiBaseUrl,
+          mode: settings.mode as "live" | "test",
+        }),
+      );
+      return {
+        ok: true,
+        x402Sync: {
+          synced: result.synced,
+          active: result.active,
+          inactive: result.inactive,
+          skipped: result.skipped,
+        },
+      };
+    } catch (e) {
+      return { error: `x402商品同期に失敗しました: ${(e as Error).message}` };
+    }
+  }
+
+  if (intent === "x402_settings_save") {
+    const enabled = new Set(formData.getAll("x402AiEnabled").map((value) => String(value)));
+    const products = await db.x402Product.findMany({
+      where: { shop },
+      select: { externalId: true },
+      take: 200,
+    });
+    for (const product of products) {
+      await db.x402Product.update({
+        where: { externalId: product.externalId },
+        data: { aiEnabled: enabled.has(product.externalId) },
+      });
+    }
+
+    const settings = await db.shopSettings.findUnique({ where: { shop } });
+    if (!settings || !settings.apiKey) {
+      return { ok: true };
     }
     try {
       const result = await syncShopifyX402Products(
@@ -152,7 +217,7 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionDat
 };
 
 export default function Settings() {
-  const { shop, settings } = useLoaderData<typeof loader>() as LoaderData;
+  const { shop, settings, x402Products } = useLoaderData<typeof loader>() as LoaderData;
   const actionData = useActionData<typeof action>() as ActionData | undefined;
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";
@@ -257,8 +322,61 @@ export default function Settings() {
                     </Button>
                   </InlineStack>
                 </FormLayout>
-              </Form>
-            </Card>
+	                </Form>
+	                {x402Products.length > 0 && (
+	                  <Box paddingBlockStart="400">
+	                    <Form method="post">
+	                      <input type="hidden" name="intent" value="x402_settings_save" />
+	                      <BlockStack gap="300">
+	                        <Text as="h2" variant="headingSm">
+	                          AI購入対象
+	                        </Text>
+	                        <div style={{ overflowX: "auto" }}>
+	                          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+	                            <thead>
+	                              <tr>
+	                                <th style={{ textAlign: "left", padding: "8px", width: "120px" }}>AI購入対象</th>
+	                                <th style={{ textAlign: "left", padding: "8px" }}>Variant</th>
+	                                <th style={{ textAlign: "left", padding: "8px", width: "100px" }}>Price</th>
+	                                <th style={{ textAlign: "left", padding: "8px", width: "90px" }}>Status</th>
+	                              </tr>
+	                            </thead>
+	                            <tbody>
+	                              {x402Products.map((product) => (
+	                                <tr key={product.externalId}>
+	                                  <td style={{ padding: "8px", borderTop: "1px solid #e3e3e3" }}>
+	                                    <input
+	                                      type="checkbox"
+	                                      name="x402AiEnabled"
+	                                      value={product.externalId}
+	                                      defaultChecked={product.aiEnabled}
+	                                    />
+	                                  </td>
+	                                  <td style={{ padding: "8px", borderTop: "1px solid #e3e3e3" }}>
+	                                    <div>{product.name}</div>
+	                                    <code>{product.externalId}</code>
+	                                  </td>
+	                                  <td style={{ padding: "8px", borderTop: "1px solid #e3e3e3" }}>
+	                                    {product.priceJpyc} JPYC
+	                                  </td>
+	                                  <td style={{ padding: "8px", borderTop: "1px solid #e3e3e3" }}>
+	                                    {product.active ? "有効" : "無効"}
+	                                  </td>
+	                                </tr>
+	                              ))}
+	                            </tbody>
+	                          </table>
+	                        </div>
+	                        <InlineStack align="end">
+	                          <Button submit loading={submitting}>
+	                            AI購入対象設定を保存
+	                          </Button>
+	                        </InlineStack>
+	                      </BlockStack>
+	                    </Form>
+	                  </Box>
+	                )}
+	              </Card>
             <Box paddingBlockStart="400">
               <Card>
                 <Form method="post">

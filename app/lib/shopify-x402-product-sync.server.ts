@@ -86,6 +86,7 @@ export async function syncShopifyX402Products(
     shopifyVariantId: string;
     name: string;
     priceJpyc: string;
+    aiEnabled: boolean;
     active: boolean;
   }> = [];
   let active = 0;
@@ -122,7 +123,6 @@ export async function syncShopifyX402Products(
       }
       products.push(item.product);
       localRows.push(item.local);
-      item.product.active ? ++active : ++inactive;
       if (products.length >= MAX_PRODUCTS_PER_SYNC) break;
     }
 
@@ -133,7 +133,23 @@ export async function syncShopifyX402Products(
     if (!after) break;
   }
 
-  const response = await client.syncProducts(products);
+  const existingRows = await db.x402Product.findMany({
+    where: {
+      shop,
+      externalId: { in: localRows.map((row) => row.externalId) },
+    },
+    select: { externalId: true, aiEnabled: true },
+  });
+  const aiEnabledByExternalId = new Map(existingRows.map((row) => [row.externalId, row.aiEnabled]));
+  for (let i = 0; i < products.length; i += 1) {
+    const aiEnabled = aiEnabledByExternalId.get(localRows[i].externalId) ?? true;
+    localRows[i].aiEnabled = aiEnabled;
+    products[i].active = products[i].active && aiEnabled;
+    localRows[i].active = products[i].active;
+    products[i].active ? ++active : ++inactive;
+  }
+
+  const response = await client.syncProducts(products, { replace: true, scope: "site" });
   const syncedAt = new Date();
   for (const row of localRows) {
     await db.x402Product.upsert({
@@ -145,6 +161,7 @@ export async function syncShopifyX402Products(
         shopifyVariantId: row.shopifyVariantId,
         name: row.name,
         priceJpyc: row.priceJpyc,
+        aiEnabled: row.aiEnabled,
         active: row.active,
         syncedAt,
       },
@@ -170,6 +187,7 @@ function toSyncItem(
   shopifyVariantId: string;
   name: string;
   priceJpyc: string;
+  aiEnabled: boolean;
   active: boolean;
 } } | null {
   const variantId = String(node.id ?? "");
@@ -209,6 +227,7 @@ function toSyncItem(
       shopifyVariantId: variantId,
       name,
       priceJpyc,
+      aiEnabled: true,
       active,
     },
   };
