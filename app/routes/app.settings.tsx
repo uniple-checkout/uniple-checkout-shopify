@@ -45,6 +45,8 @@ interface LoaderData {
     mode: "live" | "test";
     hasApiKey: boolean;
     hasWebhookSecret: boolean;
+    x402LastSync?: X402SyncSummary;
+    x402LastSyncError?: string;
   };
   x402Products: Array<{
     externalId: string;
@@ -58,8 +60,51 @@ interface LoaderData {
 interface ActionData {
   ok?: boolean;
   error?: string;
-  x402Sync?: Pick<ShopifyX402SyncResult, "synced" | "active" | "inactive" | "skipped">;
+  x402Sync?: X402SyncSummary;
 }
+
+type X402SyncSummary = Pick<ShopifyX402SyncResult, "synced" | "active" | "inactive" | "skipped"> & {
+  syncedAt?: string;
+};
+
+const toX402SyncSummary = (
+  result: Pick<ShopifyX402SyncResult, "synced" | "active" | "inactive" | "skipped">,
+  syncedAt = new Date(),
+): X402SyncSummary => ({
+  synced: result.synced,
+  active: result.active,
+  inactive: result.inactive,
+  skipped: result.skipped,
+  syncedAt: syncedAt.toISOString(),
+});
+
+const persistX402SyncSummary = async (
+  shop: string,
+  summary: X402SyncSummary,
+  syncedAt = new Date(summary.syncedAt ?? Date.now()),
+) => {
+  await db.shopSettings.update({
+    where: { shop },
+    data: {
+      x402LastSyncSynced: summary.synced,
+      x402LastSyncActive: summary.active,
+      x402LastSyncInactive: summary.inactive,
+      x402LastSyncSkipped: summary.skipped,
+      x402LastSyncError: null,
+      x402LastSyncAt: syncedAt,
+    },
+  });
+};
+
+const persistX402SyncError = async (shop: string, message: string) => {
+  await db.shopSettings.update({
+    where: { shop },
+    data: {
+      x402LastSyncError: message,
+      x402LastSyncAt: new Date(),
+    },
+  });
+};
 
 export const loader = async ({ request }: LoaderFunctionArgs): Promise<LoaderData> => {
   const { session } = await authenticate.admin(request);
@@ -78,6 +123,25 @@ export const loader = async ({ request }: LoaderFunctionArgs): Promise<LoaderDat
     },
     take: 200,
   });
+  const storedX402LastSync =
+    settings?.x402LastSyncSynced === null || settings?.x402LastSyncSynced === undefined
+      ? undefined
+      : {
+          synced: settings.x402LastSyncSynced,
+          active: settings.x402LastSyncActive ?? 0,
+          inactive: settings.x402LastSyncInactive ?? 0,
+          skipped: settings.x402LastSyncSkipped ?? 0,
+          syncedAt: settings.x402LastSyncAt?.toISOString(),
+        };
+  const currentX402SyncSummary =
+    x402Products.length === 0
+      ? undefined
+      : {
+          synced: x402Products.length,
+          active: x402Products.filter((product) => product.active).length,
+          inactive: x402Products.filter((product) => !product.active).length,
+          skipped: 0,
+        };
 
   return {
     shop,
@@ -89,6 +153,8 @@ export const loader = async ({ request }: LoaderFunctionArgs): Promise<LoaderDat
       mode: ((settings?.mode as "live" | "test") ?? "live") as "live" | "test",
       hasApiKey: Boolean(settings?.apiKey),
       hasWebhookSecret: Boolean(settings?.webhookSecret),
+      x402LastSync: storedX402LastSync ?? currentX402SyncSummary,
+      x402LastSyncError: settings?.x402LastSyncError ?? undefined,
     },
     x402Products,
   };
@@ -117,17 +183,16 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionDat
           mode: settings.mode as "live" | "test",
         }),
       );
+      const summary = toX402SyncSummary(result);
+      await persistX402SyncSummary(shop, summary);
       return {
         ok: true,
-        x402Sync: {
-          synced: result.synced,
-          active: result.active,
-          inactive: result.inactive,
-          skipped: result.skipped,
-        },
+        x402Sync: summary,
       };
     } catch (e) {
-      return { error: `x402商品同期に失敗しました: ${(e as Error).message}` };
+      const message = `x402商品同期に失敗しました: ${(e as Error).message}`;
+      await persistX402SyncError(shop, message);
+      return { error: message };
     }
   }
 
@@ -161,17 +226,16 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionDat
           mode: settings.mode as "live" | "test",
         }),
       );
+      const summary = toX402SyncSummary(result);
+      await persistX402SyncSummary(shop, summary);
       return {
         ok: true,
-        x402Sync: {
-          synced: result.synced,
-          active: result.active,
-          inactive: result.inactive,
-          skipped: result.skipped,
-        },
+        x402Sync: summary,
       };
     } catch (e) {
-      return { error: `x402商品同期に失敗しました: ${(e as Error).message}` };
+      const message = `x402商品同期に失敗しました: ${(e as Error).message}`;
+      await persistX402SyncError(shop, message);
+      return { error: message };
     }
   }
 
@@ -221,6 +285,9 @@ export default function Settings() {
   const actionData = useActionData<typeof action>() as ActionData | undefined;
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";
+  const latestX402Sync = actionData?.x402Sync ?? settings.x402LastSync;
+  const latestX402SyncError =
+    actionData?.error?.startsWith("x402商品同期に失敗しました") ? actionData.error : settings.x402LastSyncError;
 
   const [apiBaseUrl, setApiBaseUrl] = useState(settings.apiBaseUrl);
   const [merchantLabel, setMerchantLabel] = useState(settings.merchantLabel);
@@ -288,18 +355,6 @@ export default function Settings() {
                 </Banner>
               </Box>
             )}
-            {actionData?.x402Sync && (
-              <Box paddingBlockEnd="400">
-                <Banner tone="success" title="x402商品同期">
-                  <p>
-                    x402商品同期を実行しました。同期: {actionData.x402Sync.synced}件 / 有効:{" "}
-                    {actionData.x402Sync.active}件 / 無効: {actionData.x402Sync.inactive}件 /
-                    同期対象外: {actionData.x402Sync.skipped}件
-                  </p>
-                </Banner>
-              </Box>
-            )}
-
             <Card>
               <Form method="post">
                 <input type="hidden" name="intent" value="save" />
@@ -434,6 +489,32 @@ export default function Settings() {
                         x402商品同期
                       </Button>
                     </InlineStack>
+                    {latestX402Sync && (
+                      <Box
+                        padding="300"
+                        borderInlineStartWidth="050"
+                        borderColor="border-success"
+                        background="bg-surface-success"
+                      >
+                        <BlockStack gap="100">
+                          <Text as="p">
+                            商品同期: 同期 {latestX402Sync.synced}件 / 有効 {latestX402Sync.active}
+                            件 / 無効 {latestX402Sync.inactive}件 / 同期対象外{" "}
+                            {latestX402Sync.skipped}件
+                          </Text>
+                          {latestX402Sync.syncedAt && (
+                            <Text as="p" tone="subdued">
+                              最終同期: {new Date(latestX402Sync.syncedAt).toLocaleString("ja-JP")}
+                            </Text>
+                          )}
+                        </BlockStack>
+                      </Box>
+                    )}
+                    {latestX402SyncError && (
+                      <Banner tone="critical" title="商品同期">
+                        <p>{latestX402SyncError}</p>
+                      </Banner>
+                    )}
                   </BlockStack>
                 </Form>
               </Card>

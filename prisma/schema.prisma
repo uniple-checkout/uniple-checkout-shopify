@@ -33,15 +33,21 @@ model Session {
 
 // uniple 加盟店設定 (= shop ごと、 secret は app-level encryption key で暗号化推奨)
 model ShopSettings {
-  id            String   @id @default(cuid())
-  shop          String   @unique
-  apiBaseUrl    String   @default("https://uniple.io")
-  apiKey        String // 暗号化 at rest 推奨 (= sodium secretbox 等)
-  webhookSecret String // 同上
-  merchantLabel String
-  mode          String   @default("live") // live | test
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                    String    @id @default(cuid())
+  shop                  String    @unique
+  apiBaseUrl            String    @default("https://uniple.io")
+  apiKey                String // 暗号化 at rest 推奨 (= sodium secretbox 等)
+  webhookSecret         String // 同上
+  merchantLabel         String
+  mode                  String    @default("live") // live | test
+  x402LastSyncSynced    Int?
+  x402LastSyncActive    Int?
+  x402LastSyncInactive  Int?
+  x402LastSyncSkipped   Int?
+  x402LastSyncError     String?
+  x402LastSyncAt        DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 }
 
 // Shopify order ↔ uniple session mapping
