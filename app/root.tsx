@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
+import "@shopify/polaris/build/esm/styles.css";
 
 export default function App() {
   return (
