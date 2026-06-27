@@ -360,6 +360,7 @@ export default function Settings() {
   );
   const selectedApiBaseUrl = API_BASE_URL_BY_TARGET[apiTarget];
   const currentApiBaseUrl = normalizeKnownApiBaseUrl(settings.apiBaseUrl) ?? settings.apiBaseUrl;
+  const apiTargetChanged = selectedApiBaseUrl !== currentApiBaseUrl;
   const x402ProductStateKey = x402Products
     .map((product) => `${product.externalId}:${product.aiEnabled ? "1" : "0"}`)
     .join("|");
@@ -398,6 +399,19 @@ export default function Settings() {
     });
   };
 
+  const handleApiTargetChange = (value: string) => {
+    const nextTarget = value === "development" ? "development" : "production";
+    const nextApiBaseUrl = API_BASE_URL_BY_TARGET[nextTarget];
+    setApiTarget(nextTarget);
+    if (nextApiBaseUrl !== currentApiBaseUrl) {
+      setApiKey("");
+      setWebhookSecret("");
+      return;
+    }
+    setApiKey(settings.hasApiKey ? MASK : "");
+    setWebhookSecret(settings.hasWebhookSecret ? MASK : "");
+  };
+
   return (
     <PolarisAppProvider i18n={enTranslations}>
       <Page title="uniple checkout settings" subtitle={`Shop: ${shop}`}>
@@ -426,16 +440,20 @@ export default function Settings() {
                     name="apiTarget"
                     options={API_TARGET_OPTIONS}
                     value={apiTarget}
-                    onChange={(value: string) => setApiTarget(value === "development" ? "development" : "production")}
+                    onChange={handleApiTargetChange}
                     helpText="商品同期・Hosted Checkout session・webhook確認は、選択したuniple環境へ送信されます。"
                   />
                   <Text as="p" tone="subdued">
-                    Current target URL: {selectedApiBaseUrl}
+                    Saved target URL: {currentApiBaseUrl}
                   </Text>
-                  {selectedApiBaseUrl !== currentApiBaseUrl && (
+                  <Text as="p" tone="subdued">
+                    Selected target URL: {selectedApiBaseUrl}
+                  </Text>
+                  {apiTargetChanged && (
                     <Banner tone="warning" title="uniple target is changing">
                       <p>
-                        Switching target requires the API key and webhook secret for {selectedApiBaseUrl}.
+                        まだ保存されていません。{selectedApiBaseUrl} 用のAPI keyとWebhook secretを入力して
+                        Save settingsを押してください。
                       </p>
                     </Banner>
                   )}
