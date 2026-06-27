@@ -35,6 +35,39 @@ import { syncShopifyX402Products, type ShopifyX402SyncResult } from "../lib/shop
 
 const MASK = "••••••••";
 
+type ApiTarget = "production" | "development";
+
+const API_BASE_URL_BY_TARGET: Record<ApiTarget, string> = {
+  production: "https://uniple.io",
+  development: "https://dev.uniple.io",
+};
+
+const API_TARGET_OPTIONS = [
+  { label: "Production - https://uniple.io", value: "production" },
+  { label: "Development - https://dev.uniple.io", value: "development" },
+];
+
+function normalizeKnownApiBaseUrl(value: string): string | null {
+  const raw = value.trim();
+  if (!raw) return API_BASE_URL_BY_TARGET.production;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "https:") return null;
+    if (url.username || url.password || url.pathname.replace(/\/+$/, "") || url.search || url.hash) return null;
+    if (url.port && url.port !== "443") return null;
+    const normalized = `https://${url.hostname.toLowerCase()}`;
+    return Object.values(API_BASE_URL_BY_TARGET).includes(normalized) ? normalized : null;
+  } catch {
+    return null;
+  }
+}
+
+function apiTargetFromBaseUrl(value: string): ApiTarget {
+  return normalizeKnownApiBaseUrl(value) === API_BASE_URL_BY_TARGET.development
+    ? "development"
+    : "production";
+}
+
 interface LoaderData {
   shop: string;
   settings: {
@@ -171,6 +204,10 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionDat
     if (!settings || !settings.apiKey) {
       return { error: "Merchant API keyを保存してから x402商品同期を実行してください。" };
     }
+    const apiBaseUrl = normalizeKnownApiBaseUrl(settings.apiBaseUrl);
+    if (!apiBaseUrl) {
+      return { error: "API base URLは https://uniple.io または https://dev.uniple.io を選択してください。" };
+    }
     try {
       const result = await syncShopifyX402Products(
         admin,
@@ -179,7 +216,7 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionDat
           apiKey: settings.apiKey,
           webhookSecret: settings.webhookSecret,
           merchantLabel: settings.merchantLabel,
-          apiBaseUrl: settings.apiBaseUrl,
+          apiBaseUrl,
           mode: settings.mode as "live" | "test",
         }),
       );
@@ -214,6 +251,10 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionDat
     if (!settings || !settings.apiKey) {
       return { ok: true };
     }
+    const apiBaseUrl = normalizeKnownApiBaseUrl(settings.apiBaseUrl);
+    if (!apiBaseUrl) {
+      return { error: "API base URLは https://uniple.io または https://dev.uniple.io を選択してください。" };
+    }
     try {
       const result = await syncShopifyX402Products(
         admin,
@@ -222,7 +263,7 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionDat
           apiKey: settings.apiKey,
           webhookSecret: settings.webhookSecret,
           merchantLabel: settings.merchantLabel,
-          apiBaseUrl: settings.apiBaseUrl,
+          apiBaseUrl,
           mode: settings.mode as "live" | "test",
         }),
       );
@@ -239,7 +280,10 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionDat
     }
   }
 
-  const apiBaseUrl = String(formData.get("apiBaseUrl") ?? "https://uniple.io").trim();
+  const apiTarget = String(formData.get("apiTarget") ?? "production") === "development"
+    ? "development"
+    : "production";
+  const apiBaseUrl = API_BASE_URL_BY_TARGET[apiTarget];
   const merchantLabel = String(formData.get("merchantLabel") ?? "").trim();
   const mode = (String(formData.get("mode") ?? "live") === "test" ? "test" : "live") as
     | "live"
@@ -248,6 +292,22 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionDat
   const webhookSecretInput = String(formData.get("webhookSecret") ?? "");
 
   const existing = await db.shopSettings.findUnique({ where: { shop } });
+  const existingApiBaseUrl = normalizeKnownApiBaseUrl(existing?.apiBaseUrl ?? API_BASE_URL_BY_TARGET.production);
+  const apiBaseUrlChanged = Boolean(existing) && existingApiBaseUrl !== apiBaseUrl;
+  const apiKeyInputTrimmed = apiKeyInput.trim();
+  const webhookSecretInputTrimmed = webhookSecretInput.trim();
+  if (
+    apiBaseUrlChanged &&
+    (apiKeyInputTrimmed === "" ||
+      apiKeyInputTrimmed === MASK ||
+      webhookSecretInputTrimmed === "" ||
+      webhookSecretInputTrimmed === MASK)
+  ) {
+    return {
+      error:
+        "Production / Development の切替時は、切替先環境のAPI keyとWebhook secretを再入力してください。",
+    };
+  }
 
   // mask または空のときは既存値を維持 (= EC-CUBE 4 / WC plugin と同 pattern)
   const preserveIfMasked = (value: string, current: string): string => {
@@ -289,7 +349,7 @@ export default function Settings() {
   const latestX402SyncError =
     actionData?.error?.startsWith("x402商品同期に失敗しました") ? actionData.error : settings.x402LastSyncError;
 
-  const [apiBaseUrl, setApiBaseUrl] = useState(settings.apiBaseUrl);
+  const [apiTarget, setApiTarget] = useState<ApiTarget>(() => apiTargetFromBaseUrl(settings.apiBaseUrl));
   const [merchantLabel, setMerchantLabel] = useState(settings.merchantLabel);
   const [mode, setMode] = useState<"live" | "test">(settings.mode);
   const [apiKey, setApiKey] = useState(settings.apiKey);
@@ -298,6 +358,8 @@ export default function Settings() {
   const [x402AiEnabled, setX402AiEnabled] = useState<Set<string>>(
     () => new Set(x402Products.filter((product) => product.aiEnabled).map((product) => product.externalId)),
   );
+  const selectedApiBaseUrl = API_BASE_URL_BY_TARGET[apiTarget];
+  const currentApiBaseUrl = normalizeKnownApiBaseUrl(settings.apiBaseUrl) ?? settings.apiBaseUrl;
   const x402ProductStateKey = x402Products
     .map((product) => `${product.externalId}:${product.aiEnabled ? "1" : "0"}`)
     .join("|");
@@ -359,14 +421,24 @@ export default function Settings() {
               <Form method="post">
                 <input type="hidden" name="intent" value="save" />
                 <FormLayout>
-                  <TextField
-                    label="API base URL"
-                    name="apiBaseUrl"
-                    value={apiBaseUrl}
-                    onChange={setApiBaseUrl}
-                    autoComplete="off"
-                    helpText="Default: https://uniple.io"
+                  <Select
+                    label="uniple target"
+                    name="apiTarget"
+                    options={API_TARGET_OPTIONS}
+                    value={apiTarget}
+                    onChange={(value: string) => setApiTarget(value === "development" ? "development" : "production")}
+                    helpText="商品同期・Hosted Checkout session・webhook確認は、選択したuniple環境へ送信されます。"
                   />
+                  <Text as="p" tone="subdued">
+                    Current target URL: {selectedApiBaseUrl}
+                  </Text>
+                  {selectedApiBaseUrl !== currentApiBaseUrl && (
+                    <Banner tone="warning" title="uniple target is changing">
+                      <p>
+                        Switching target requires the API key and webhook secret for {selectedApiBaseUrl}.
+                      </p>
+                    </Banner>
+                  )}
                   <TextField
                     label="Merchant label"
                     name="merchantLabel"
@@ -482,6 +554,9 @@ export default function Settings() {
                       Shopifyの商品バリエーションをunipleの商品catalogへ同期します。公開中・購入可能なバリエーションは有効として同期されます。
                     </Text>
                     <Text as="p" tone="subdued">
+                      同期先: {settings.apiBaseUrl}
+                    </Text>
+                    <Text as="p" tone="subdued">
                       通常のHosted Checkout / LINE / WalletConnect決済フローは変更されません。
                     </Text>
                     <InlineStack align="end">
@@ -531,6 +606,9 @@ export default function Settings() {
                 </Text>
                 <Text as="p" tone="subdued">
                   Webhook secret: {settings.hasWebhookSecret ? "set" : "not set"}
+                </Text>
+                <Text as="p" tone="subdued">
+                  uniple target: {settings.apiBaseUrl}
                 </Text>
                 <Text as="p" tone="subdued">
                   Route flow: Manual Payment + order confirmation email pay link
