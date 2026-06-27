@@ -204,7 +204,7 @@ function toSyncItem(
   if (!priceJpyc) return null;
 
   const externalId = `shopify-product-${productNumericId}-variant-${variantNumericId}`;
-  const name = truncate(node.displayName || node.product?.title || node.title || "Shopify product", 255);
+  const name = truncate(shopifyVariantCatalogName(node), 255);
   const active = node.product?.status === "ACTIVE" && node.availableForSale === true;
   const pageUrl = node.product?.onlineStoreUrl || `https://${shop}/products/${node.product?.handle ?? ""}`;
   const imageUrl = node.product?.featuredMedia?.preview?.image?.url ?? "";
@@ -231,6 +231,22 @@ function toSyncItem(
       active,
     },
   };
+}
+
+export function shopifyVariantCatalogName(
+  node: Pick<ProductVariantNode, "displayName" | "title" | "product">,
+): string {
+  const productTitle = String(node.product?.title ?? "").trim();
+  const variantTitle = String(node.title ?? "").trim();
+  if (productTitle && (!variantTitle || variantTitle.toLowerCase() === "default title")) {
+    return productTitle;
+  }
+
+  const displayName = String(node.displayName ?? "").trim();
+  if (displayName) return displayName;
+  if (productTitle && variantTitle) return `${productTitle} - ${variantTitle}`;
+
+  return productTitle || variantTitle || "Shopify product";
 }
 
 function normalizePriceJpyc(value: unknown): string | null {
